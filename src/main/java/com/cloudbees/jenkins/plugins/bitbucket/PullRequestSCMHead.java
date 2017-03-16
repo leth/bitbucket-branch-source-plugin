@@ -71,7 +71,7 @@ public class PullRequestSCMHead extends SCMHead implements ChangeRequestSCMHead 
         this.repository = repository;
         this.branchName = branchName;
         this.number = pr.getId();
-        this.target = new BranchSCMHead(pr.getDestination().getBranch().getName(), repositoryType);
+        this.target = new BranchSCMHead(branchName, repositoryType);
     }
 
     @SuppressFBWarnings("SE_PRIVATE_READ_RESOLVE_NOT_INHERITED") // because JENKINS-41313

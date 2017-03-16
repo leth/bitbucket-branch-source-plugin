@@ -364,12 +364,21 @@ public class BitbucketSCMSource extends SCMSource {
                         // TODO get more details on the author
                         new ContributorMetadataAction(pull.getAuthorLogin(), null, null)
                 );
-                observe(criteria, observer, listener,
-                        pull.getSource().getRepository().getOwnerName(),
-                        pull.getSource().getRepository().getRepositoryName(),
-                        pull.getSource().getBranch().getName(),
-                        hash,
-                        pull);
+                if (repositoryType == BitbucketRepositoryType.GIT) {
+                    observe(criteria, observer, listener,
+                            repoOwner,
+                            this.repository,
+                            "refs/pull-requests/" + pull.getId() + "/from",
+                            hash,
+                            pull);
+                } else {
+                    observe(criteria, observer, listener,
+                            pull.getSource().getRepository().getOwnerName(),
+                            pull.getSource().getRepository().getRepositoryName(),
+                            pull.getSource().getBranch().getName(),
+                            hash,
+                            pull);
+                }
                 if (!observer.isObserving()) {
                     return;
                 }
@@ -468,6 +477,25 @@ public class BitbucketSCMSource extends SCMSource {
                 ? buildBitbucketClient((PullRequestSCMHead) head)
                 : buildBitbucketClient();
         String branchName = head instanceof PullRequestSCMHead ? ((PullRequestSCMHead) head).getBranchName() : head.getName();
+        if (getRepositoryType() == BitbucketRepositoryType.GIT && head instanceof PullRequestSCMHead) {
+            BitbucketPullRequest pull = bitbucket.getPullRequestById(Integer.parseInt(((PullRequestSCMHead) head).getId()));
+            String hash;
+            try {
+                hash = bitbucket.resolveSourceFullHash(pull);
+            } catch (BitbucketRequestException e) {
+                if (e.getHttpCode() == 403) {
+                    listener.getLogger().println(
+                            "Do not have permission to view PR from " + pull.getSource().getRepository().getFullName() + " and branch "
+                                    + pull.getSource().getBranch().getName());
+                    // the credentials do not have permission, so we should not observe the PR ever
+                    // the PR is dead to us, so this is the one case where we can squash the exception.
+                }
+                throw e;
+            }
+
+            return new AbstractGitSCMSource.SCMRevisionImpl(head, hash);
+        }
+
         List<? extends BitbucketBranch> branches = bitbucket.getBranches();
         for (BitbucketBranch b : branches) {
             if (branchName.equals(b.getName())) {
